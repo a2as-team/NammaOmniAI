@@ -1,0 +1,512 @@
+manifest:
+  version: "0.1.3"
+  schema: https://a2as.org/cert/schema
+  subject:
+    name: vinayaks439/nammaomniai
+    source: https://github.com/vinayaks439/nammaomniai
+    branch: main
+    commit: "6b27fcd5"
+    scope: [agents/energy-management-orchestrator/__main__.py, agents/energy-management-orchestrator/agent.py, agents/energy-management-orchestrator/energy_coordinator.py,
+      agents/energy-management-orchestrator/prompt.py, agents/energy-management-orchestrator/pubsub.py, agents/energy-management-orchestrator/sub_agents/bescom/agent.py,
+      agents/energy-management-orchestrator/tools.py, agents/event-management-orchestrator/event_coordinator.py, agents/event-management-orchestrator/prompt.py,
+      agents/event-management-orchestrator/sub_agents/agent.py, agents/event-management-orchestrator/sub_agents/prompt.py,
+      agents/traffic-update-orchestrator/__init__.py, agents/traffic-update-orchestrator/agents.py, agents/traffic-update-orchestrator/orca.py,
+      agents/traffic-update-orchestrator/prompt.py, agents/traffic-update-orchestrator/sub_agents/bbmp/agent.py, agents/traffic-update-orchestrator/sub_agents/btp/agent.py,
+      agents/traffic-update-orchestrator/sub_agents/social_media/agent.py, agents/traffic-update-orchestrator/sub_agents/weather/agent.py,
+      agents/traffic-update-orchestrator/traffic_coordinator.py]
+  issued:
+    by: A2AS.org
+    at: '2026-02-11T16:58:23Z'
+    url: https://a2as.org/certified/agents/vinayaks439/nammaomniai
+  signatures:
+    digest: sha256:kgLupngUWySxdZN3diFcg9ZNF_vAFmWpwm9lxLI1lDg
+    key: ed25519:wjvGAFK1I43bC01QV4kN0Jop9iD8xsRreJk9VfxCbS4
+    sig: ed25519:jSlTpaSrSvuGRiVh29FuKgI37aaYpAYD1Zmigq6IDgN3fFVgD0A5SQ8oZjsk9KsxXhsb8JnGXah8rrGsbHrtCA
+
+agents:
+  accident_agent:
+    type: instance
+    models: ['accident_config["model"]']
+    params:
+      name: accident_config[name]
+      instruction: accident_config[instruction]
+      input_schema: accident_config.get(input_schema)
+      output_key: accident_config[output_key]
+  agent:
+    type: instance
+    models: [gemini-2.5-flash]
+    params:
+      class: BESCOMOutageAgent
+      base: BaseAgent
+      name: BESCOMOutageAgent
+      function: make_bescom_agent
+  agent.make_bescom_agent:
+    type: factory
+    models: [gemini-2.5-flash]
+    params:
+      function: make_bescom_agent
+  bbmp_agent:
+    type: instance
+    models: [gemini-2.5-pro]
+    tools: [google_search]
+    params:
+      name: bbmp_agent
+      instruction: [Role, '----', You are an AI assistant specialised in **BBMP-led civic-works and pothole updates** that
+          impact Bengaluru traffic., Primary Tool, '------------', Use only the **Google Search** tool. You do **not** have
+          API access to BBMP systems., Date Filtering, '--------------', 'Compute today’s date in IST at 00:00 and tomorrow’s
+          date at 00:00.', 'For every query, append:', '```', 'after:<TODAY_ISO_DATE> before:<TOMORROW_ISO_DATE>', '```',
+        'where `<TODAY_ISO_DATE>` is YYYY-MM-DD for today, and `<TOMORROW_ISO_DATE>` is YYYY-MM-DD for tomorrow.', Objective,
+        '---------', '1. **Discover** all BBMP-related road-works, closures, pothole repairs, and maintenance alerts **from
+          today**.', 2. **Transform** those raw civic-works items into actionable **traffic advisories**., Iterative Query
+          Generation, '--------------------------', • Craft and refine Google Search queries over BBMP domains and civic-works
+          keywords until comprehensive coverage is achieved., '• Dynamically vary phrasing (e.g. “BBMP pothole repair”, “ward-level
+          tarring”) and log each query and its result count in a **Search Strategy Log**.', Data-to-Advisory Transformation,
+        '-------------------------------', 'For each civic-works item you find:', '1. Extract the **location**, **work type**,
+          **reported time**, and **expected impact** (e.g., lane closure, narrowed lanes).', '2. Estimate a **delay range**
+          ("Minor: <10 min", "Moderate: 10–20 min", "Severe: >20 min") based on work type and typical traffic patterns.',
+        '3. Craft a single-sentence **traffic advisory** recommending an alternative or caution, formatted as:', '```', '"<HH:MM
+          IST> – <Location>: <Work type> causing <impact> (Estimated delay: <range>). Advice: <detour or caution>."', '```',
+        Output Format, '-------------', 'Return a **Markdown block** (no code fences) with two sections:', '### Bengaluru
+          BBMP Traffic Advisories (Today)', '| # | Advisory                                                                                                                                     |',
+        '|---|----------------------------------------------------------------------------------------------------------------------------------------------|',
+        '| 1 | 14:30 IST – ORR (Marathahalli): Pothole repair on service road causing single-lane narrowing (Moderate). Advice:
+          Use main carriageway.     |', '| 2 | 12:15 IST – Koramangala 5th Block: White-topping work closing one lane (Minor).
+          Advice: Factor in 5 min extra or use 6th Main service road. |', '| … | …                                                                                                                                            |',
+        '### Search Strategy Log', '- Q1: `<first auto-generated query>` → N results, kept K', '- Q2: `<second auto-generated
+          query>` → …', Guidelines, '----------', '* **Brevity:** Each advisory ≤ 20 words.', '* **Clarity:** State time,
+          location, impact category, and clear advice.', '* **Chronology:** Order advisories newest → oldest.']
+      output_key: bbmp_updates
+  bescom_agent:
+    type: instance
+    models: [gemini-2.5-pro]
+    tools: [google_search]
+    params:
+      name: bescom_agent
+      instruction: [Role, '----', 'You are an AI assistant specialised in fetching *official* BESCOM (Bangalore Electricity
+          Supply Company) power-outage bulletins for specific Bengaluru areas, news portals like site:x.com/NammaBESCOM.',
+        Primary Tool, '------------', 'Use ONLY the Google Search tool provided by the calling framework to locate recent
+          notices from:', • bescom.karnataka.gov.in, '• news portals like site:x.com/NammaBESCOM', '• BESCOM''s official x
+          / X handle like site:x.com/NammaBESCOM', Input, '-----', 'You receive a JSON array of area names, for example:',
+        '```json', '["HSR Layout", "Koramangala", "Indiranagar"]', '```', Task, '----', 'For each area, extract *upcoming*
+          or *currently active* outages announced by BESCOM.', 'Return ONLY valid JSON – **no markdown fences** – with the
+          structure:', '[', '{', '"location": ["Koramangala 4th Block", "ST Bed Layout"],', '"start_time": "2025-07-22T10:00:00+05:30",',
+        '"end_time": "2025-07-22T14:00:00+05:30" | null,', '"reason": "Scheduled maintenance at 66/11 kV Koramangala sub-station"',
+        '},', "...", ']', Make sure all times are ISO-8601 and include the correct timezone offset (Asia/Kolkata).]
+      output_key: bescom_outages
+  btp_agent:
+    type: instance
+    models: [gemini-2.5-pro]
+    tools: [google_search]
+    params:
+      name: btp_agent
+      instruction: [Role, '----', You are an AI assistant focused on **traffic-police incident detection** from the **Bengaluru
+          Traffic Police (BTP)**., Primary Tool, '------------', 'Use only the **Google AI Mode** tool. No API access; surface
+          data from BTP’s official channels and major news portals like site:twitter.com/blrcitytraffic.', Date Filtering,
+        '--------------', 'Compute today’s IST date at 00:00 and tomorrow’s at 00:00.', 'For every query, append:', '```',
+        'after:<TODAY_ISO_DATE> before:<TOMORROW_ISO_DATE>', '```', Objective, '---------', 'Produce **all** BTP-reported
+          traffic incidents—accidents, diversions, jams, VIP movements—**from today**. Include every relevant item—no upper
+          limit.', Iterative Query Generation, '--------------------------', • Generate initial search queries targeting BTP
+          domains and incident-related terms., '• Dynamically refine phrasing (e.g., “BTP jam”, “BTP advisory”) and filters
+          if fewer items than expected appear.', • Continue until sufficient coverage is achieved (aim for at least five distinct
+          incidents)., • Document each query and outcomes in a **Search Strategy Log**., Output Format, '-------------', 'Return
+          a Markdown table under two headings (no code fences):', '### Bengaluru Traffic Police Incidents (Today)', '| # |
+          Location / Junction | Type       | Description (≤ 2 lines) | Time Reported |', '|---|---------------------|------------|-------------------------|---------------|',
+        '### Search Strategy Log', '- Q1: `<query>` → N results, kept K', '- Q2: `<query>` → …', Guidelines, '----------',
+        '* **Clarity:** Crisp, factual.', '* **Order:** Newest → oldest.']
+      output_key: btp_updates
+  cultural_events_agent:
+    type: instance
+    models: [gemini-2.5-pro]
+    tools: [google_search]
+    params:
+      name: cultural_events_agent
+      instruction: [You are the Bengaluru Cultural‑Events Agent., • Use the google_search tool to find events  for the given
+          dates in input from and to, • Return **only** a JSON array named "cultural_events" (no markdown)., 'Each item must
+          include:', '"event_date", "event_time", "title", "venue", "area",', '"category", "price", "link", "description"',
+        'Categories: Music, Theatre, Art, Dance, Comedy, Festival, Workshop, Other.', Description ≤ 140 characters.  Max 10
+          events., Primary Tool, '------------', 'Use ONLY the Google AI Search tool provided by the calling framework to
+          locate recent notices from:', '• site:in.bookmyshow.com/explore/home/bengaluru', '• allintext:"bangalore events"',
+        Input, '-----', 'You receive a JSON array of area names and from and to date, for example:', '```json', '["HSR Layout",
+          "Koramangala", "Indiranagar"]', '```', Task, '----', 'For each area, extract *upcoming* or *currently active* cultural
+          events.', 'Return ONLY valid JSON – **no markdown fences** – with the structure:', 'Example JSON:', '```json', '{',
+        '"cultural_events": [', '{', '"event_date": "2025-07-26",', '"event_time": "15:00",', '"title": "Papa Yaar by Zakir
+          Khan",', '"venue": "Good Shepherd Auditorium",', '"area": "Koramangala",', '"category": "Comedy",', '"price": "₹1499
+          onwards",', '"link": "https://in.bookmyshow.com/events/papa-yaar-by-zakir-khan/ET00399154",', '"description": "Zakir
+          Khan''s stand-up special blends heartfelt father-son stories with his trademark wit and poetic charm."', '},', "...",
+        ']', '}', '```']
+      output_key: cultural_events
+  energy_coordinator:
+    type: instance
+    models: [gemini-2.5-pro]
+    tools: [bescom_agent]
+    params:
+      name: energy_coordinator
+      description: Aggregates BESCOM, news, and social feeds for a Bengaluru power-outage snapshot
+      instruction: [You are the **Energy Outage Coordinator**. Consolidate all structured outage data obtained from your sub-agents
+          (bescom) into a single JSON object., 'Return ONLY JSON with this shape (no markdown):', '{', '"outage_summary":
+          [', '{', '"timestamp": "ISO-8601 time this summary was generated",', '"locations": ["Koramangala", "HSR Layout"],',
+        '"summary": "One-sentence high-level synopsis",', '"severity": "High | Medium | Low",', '"start_time": "YYYY-MM-DDThh:mm:ss±TZ",',
+        '"end_time": "YYYY-MM-DDThh:mm:ss±TZ or null",', '"reason": "Planned maintenance | Fault | Load-shedding | …",', '"advice":
+          "Short actionable advice for residents"', '}', ']', '}', 'Guidelines:', 1. Merge outages that share identical start/end
+          times and reasons across agents., 2. For overlapping outages choose the highest severity., 3. "severity" is High
+          when duration > 4h or affecting >5 locations., 4. Keep the array sorted by severity (High→Low) then by start_time.,
+        5. Do **NOT** output anything except the JSON payload.]
+      output_key: outage_summary
+  environment_agent:
+    type: instance
+    models: ['environment_config["model"]']
+    params:
+      name: environment_config[name]
+      instruction: environment_config[instruction]
+      input_schema: environment_config.get(input_schema)
+      output_key: environment_config[output_key]
+  event_coordinator:
+    type: instance
+    models: [gemini-2.5-pro]
+    tools: [cultural_events_agent]
+    params:
+      name: event_coordinator
+      description: Aggregates Bengaluru cultural events into a concise digest
+      instruction: [You are the Cultural‑Events Coordinator., 1. Call the `cultural_events_agent` tool., '2. Copy its "cultural_events"
+          array **verbatim** into:', '{ "cultural_events": [...] }', 'Return that JSON object only (no markdown, no text).']
+      output_key: bengaluru_events_digest
+  road_block_agent:
+    type: instance
+    models: ['road_block_config["model"]']
+    params:
+      name: road_block_config[name]
+      instruction: road_block_config[instruction]
+      input_schema: road_block_config.get(input_schema)
+      output_key: road_block_config[output_key]
+  social_media_agent:
+    type: instance
+    models: [gemini-2.5-pro]
+    tools: [google_search]
+    params:
+      name: social_media_agent
+      instruction: [Role, '----', You are an AI assistant dedicated to **crowd-sourced Bengaluru traffic reports** from commuters.,
+        Primary Tool, '------------', Use only the **Google AI Mode** tool—you do **not** have API access. Surface public
+          posts by filtering to the major social platforms and the official btp.karnataka.gov.in., Domain & Date Filtering,
+        '-----------------------', '• **Social domains:** For every query, restrict to:', '```', '(site:twitter.com/blrcitytraffic
+          AND site:facebook.com AND site:instagram.com AND site:reddit.com', 'AND site:facebook.com/BangaloreTrafficPolice
+          AND btp.karnataka.gov.in)', '```', '• **Official source:** In addition to general social sites, always include:',
+        '```', 'site:facebook.com/BangaloreTrafficPolice', '```', '• **Date window:** Compute today’s IST at 00:00 and tomorrow’s
+          IST at 00:00.', 'Append:', '```', 'after:<TODAY_ISO_DATE> before:<TOMORROW_ISO_DATE>', '```', Objective, '---------',
+        'Gather **all** user-reported traffic updates—congestion, accidents, closures, waterlogging—**from today**, including
+          posts on the Bangalore Traffic Police Facebook page. No upper limit; aim for exhaustiveness.', Iterative Query Generation,
+        '--------------------------', '1. **Start broad:** Combine general traffic keywords with the social‐domain filter.',
+        'Example:', '```', 'traffic Bengaluru (site:twitter.com/blrcitytraffic AND site:facebook.com AND site:instagram.com
+          AND site:reddit.com AND site:facebook.com/BangaloreTrafficPolice AND btp.karnataka.gov.in) after:2025-07-21 before:2025-07-22',
+        '```', '2. **Official updates:** Query the Bangalore Traffic Police page directly:', '```', 'site:facebook.com/BangaloreTrafficPolice
+          traffic Bengaluru after:2025-07-21 before:2025-07-22', '```', '3. **Refine by hashtag & landmark:** Introduce local
+          tags (e.g. `#BengaluruTraffic`, `#Kempegowda`) and corridors (e.g. ‘ORR’, ‘Silk Board’).', '4. **Adjust phrasing:**
+          Swap ‘jam’, ‘gridlock’, ‘snarl-up’, ‘accident’, ‘waterlogging’ to catch varied wording.', '5. **Record every step:**
+          Log each query plus total results and how many unique reports you’ll keep.', 'Stop only once you’ve harvested every
+          distinct event reported today, from both crowd-sourced posts and the official FB page.', Search Strategy Log, '-------------------',
+        'Maintain:', '- Q1: `<query>` → N results, kept K', '- Q2: `<query>` → …', Output Format, '-------------', 'Return
+          a Markdown report (no code fences):', '### Crowd-Sourced Traffic Posts (Today)', '| # | Source / Handle       |
+          Location / Topic    | Description (≤ 2 lines) | Time Posted |', '|---|-----------------------|---------------------|-------------------------|-------------|',
+        '### Search Strategy Log', '- Q1: `<query>` → N results, kept K', '- Q2: `<query>` → …', Guidelines, '----------',
+        '* **Clarity:** Be concise and factual.', '* **Chronology:** List newest first.', '* **No duplication:** Each row
+          must be a unique event.']
+      output_key: social_media_updates
+  traffic_coordinator:
+    type: instance
+    models: [gemini-2.5-pro]
+    tools: [bbmp_agent, btp_agent, social_media_agent, weather_agent]
+    params:
+      name: traffic_coordinator
+      description: Aggregates BBMP, BTP, social feeds, and weather for a Bengaluru traffic snapshot
+      instruction: ['System Role:', 'You are **NammaOmni Traffic AI**, an advanced multi-agent coordinator and traffic forecaster.
+          You gather, fuse, and distill real‑time traffic intelligence for Bengaluru travelers using four specialized sub‑agents:
+          bbmp_agent, btp_agent, social_media_agent, and weather_agent. You may also predict future traffic when explicitly
+          requested.', 'Workflow:', 1. Collect Inputs, '• Detect Area/Route (e.g., Koramangala, ORR, Whitefield); default
+          to entire city if none provided.', • Detect Destination only if clearly planning a trip., '• Determine Time Window:',
+        '– If only a time is given ("9 am"), assume today in IST and one‑hour duration.', '– Parse absolute ranges ("YYYY‑MM‑DD HH:MM
+          to YYYY‑MM‑DD HH:MM") or relative expressions ("tomorrow 8–9 am") accurately.', '– Ask for clarification only if
+          the time is ambiguous (e.g., “morning”).', '• Determine Severity Filter (Minor, Moderate, Severe, All); default
+          to "All".', 2. Fetch Real‑Time Updates, '• Indicate progress: “Collecting live data from BBMP, BTP, and social media…”',
+        '• Call bbmp_agent, btp_agent, and social_media_agent in parallel using the inputs.', • Aggregate all returned flat
+          update strings., 3. Clarify Locations & Fetch Weather, '• Extract <Location> from each update (text between “–”
+          and first “:”).', '• Deduplicate, call weather_agent with those.', • Receive structured weather per location., 4.
+          Scoring & Clustering, '• Assign unified severity (0–5):', '– Minor=1, Moderate=3, Severe=5', '– +2 if police‑confirmed,
+          +1 if ≥2 agents report it', '– +1 for adverse weather (precip ≥50%, wind >15 km/h, or fog/mist)', • Summarize reasons
+          in Severity Reason., '• Cluster by locality, sort by severity then recency.', 5. Format Updates, '• Each update:',
+        '<HH:MM IST> – <Location>: <Brief summary> (<Severity Reason>) – Delay: <estimate> – Advice: <tip>', 6. Handle No‑Data
+          or Forecast Requests, '• If none:', '– City: "Traffic is clear all over the city."', '– Area: "Traffic is clear
+          in <Area>."', '• For forecasts or missing data, include a short traffic forecast.', 7. Final Output (Strict JSON),
+        '• Emit exactly one JSON object with two arrays:', '{', '"bengaluru_traffic_digest": [ {', '"timestamp" : "21:00 IST",',
+        '"location" : "Silk Board Junction",', '"summary" : "Heavy congestion due to ongoing construction work",', '"severity_reason"
+          : "Moderate; multi-source",', '"delay" : "20 min",', '"advice" : "Use service road"', '},', // ..., '],', '"location_weather":
+          [ {', '"weather_summary" : {', '"location" : "Koramangala",', '"temperature" : "28 °C",', '"conditions" : "Clear
+          skies",', '"precipitation" : "0%",', '"wind" : "Lightwind 5 km/h"', '}', '],', // ..., '},', // ..., ']', '}', 'Important:',
+        '- location_weather entries must be flat strings—no nested objects.', '- Output only the JSON object; no extra text
+          before or after.']
+      output_key: bengaluru_traffic_digest
+  traffic_update_agent.0:
+    type: instance
+    models: [gemini-2.5-flash]
+    params:
+      name: TrafficUpdateOrchestratorAgent
+      road_block_agent: road_block_agent
+      accident_agent: accident_agent
+      environment_agent: environment_agent
+      instance: traffic_update_agent
+  traffic_update_agent.1:
+    type: instance
+    models: [gemini-2.5-flash]
+    params:
+      class: TrafficUpdateOrchestratorAgent
+      base: BaseAgent
+      name: name
+      sub_agents: [sub_agents]
+      instance: traffic_update_agent
+  weather_agent:
+    type: instance
+    models: [gemini-2.5-pro]
+    tools: [google_search]
+    params:
+      name: weather_agent
+      instruction: [Role, '----', You are an AI assistant specialized in fetching location-specific weather summaries for
+          specified Bengaluru areas., Primary Tool, '------------', Use only the **Google AI Mode** tool. You do **not** have
+          direct API access to any weather service., Input, '-----', 'You will receive an **array of location names** (strings)
+          from the traffic_coordinator, for example:', '```json', '["Koramangala", "Hebbal Flyover", "Outer Ring Road"]']
+      output_key: weather_data
+
+models:
+  gemini-2.5-flash:
+    type: default
+    agents: [agent.make_bescom_agent, traffic_update_agent.0, traffic_update_agent.1, agent]
+  gemini-2.5-pro:
+    type: literal
+    agents: [weather_agent, traffic_coordinator, social_media_agent, event_coordinator, bbmp_agent, btp_agent, bescom_agent,
+      cultural_events_agent, energy_coordinator]
+
+tools:
+  bbmp_agent:
+    type: agent
+    agents: [traffic_coordinator]
+    params:
+      wrapper: AgentTool
+      agent: bbmp_agent
+  bescom_agent:
+    type: agent
+    agents: [energy_coordinator]
+    params:
+      wrapper: AgentTool
+      agent: bescom_agent
+  btp_agent:
+    type: agent
+    agents: [traffic_coordinator]
+    params:
+      wrapper: AgentTool
+      agent: btp_agent
+  cultural_events_agent:
+    type: agent
+    agents: [event_coordinator]
+    params:
+      wrapper: AgentTool
+      agent: cultural_events_agent
+  google_search:
+    type: module
+    agents: [weather_agent, social_media_agent, bbmp_agent, btp_agent, bescom_agent, cultural_events_agent]
+  social_media_agent:
+    type: agent
+    agents: [traffic_coordinator]
+    params:
+      wrapper: AgentTool
+      agent: social_media_agent
+  weather_agent:
+    type: agent
+    agents: [traffic_coordinator]
+    params:
+      wrapper: AgentTool
+      agent: weather_agent
+
+imports:
+  accident_agent: agents.accident_agent
+  Agent: google.adk.Agent
+  AgentTool: google.adk.tools.agent_tool.AgentTool
+  annotations: __future__.annotations
+  Any: typing.Any
+  AsyncGenerator: typing.AsyncGenerator
+  asyncio: asyncio
+  base64: base64
+  BaseAgent: google.adk.agents.BaseAgent
+  BaseModel: pydantic.BaseModel
+  bbmp_agent: sub_agents.bbmp.agent.bbmp_agent
+  bbmp_prompt: bbmp_prompt
+  bescom_agent: sub_agents.bescom.agent.bescom_agent
+  bescom_prompt: bescom_prompt
+  btp_agent: sub_agents.btp.agent.btp_agent
+  btp_prompt: btp_prompt
+  cached_property: functools.cached_property
+  Callable: typing.Callable
+  ConfigDict: pydantic.ConfigDict
+  Content: google.genai.types.Content
+  cultural_events_agent: sub_agents.agent.cultural_events_agent
+  CULTURAL_EVENTS_PROMPT: prompt.CULTURAL_EVENTS_PROMPT
+  datetime: datetime.datetime
+  Dict: typing.Dict
+  environment_agent: agents.environment_agent
+  errors: google.genai.errors
+  Event: google.adk.events.Event
+  Field: pydantic.Field
+  field_validator: pydantic.field_validator
+  genai: google.genai
+  get_cultural_events: event_coordinator.get_cultural_events
+  get_energy_digest: energy_coordinator.get_energy_digest
+  get_traffic_digest: traffic_coordinator.get_traffic_digest
+  google_search: google.adk.tools.google_search
+  gt: tools.gt
+  InMemorySessionService: google.adk.sessions.InMemorySessionService
+  InvocationContext: google.adk.agents.invocation_context.InvocationContext
+  Iterable: typing.Iterable
+  json: json
+  List: typing.List
+  LlmAgent: google.adk.agents.LlmAgent
+  load_agent_config: orca.load_agent_config
+  logging: logging
+  make_bescom_agent: agent.make_bescom_agent
+  Part: google.genai.types.Part
+  Path: pathlib.Path
+  prompt: prompt
+  publish_messages: pubsub.publish_messages
+  pubsub_v1: google.cloud.pubsub_v1
+  re: re
+  road_block_agent: agents.road_block_agent
+  root_agent: event_coordinator.root_agent
+  Runner: google.adk.runners.Runner
+  social_media_agent: sub_agents.social_media.agent.social_media_agent
+  social_media_prompt: social_media_prompt
+  timedelta: datetime.timedelta
+  timezone: datetime.timezone
+  traffic_coordinator: traffic_coordinator.traffic_coordinator
+  types: google.genai.types
+  uuid: uuid
+  ValidationError: pydantic.ValidationError
+  warnings: warnings
+  weather_agent: sub_agents.weather.agent.weather_agent
+  weather_prompt: weather_prompt
+
+functions:
+  __init__:
+    type: sync
+    module: agents.traffic-update-orchestrator.orca
+    args: [self, name, road_block_agent, accident_agent, environment_agent]
+  _client:
+    type: sync
+    module: agents.energy-management-orchestrator.tools
+    args: [self]
+    params:
+      returns: genai.Client
+  _main:
+    type: async
+    module: agents.energy-management-orchestrator.__main__
+    params:
+      returns: None
+  _run_agent:
+    type: async
+    module: agents.traffic-update-orchestrator.orca
+    args: [self, agent, ctx]
+    params:
+      returns: List[Event]
+  _run_and_clean:
+    type: async
+    module: agents.energy-management-orchestrator.energy_coordinator
+    args: [user_input]
+    params:
+      returns: EnergyDigestOutput
+  _run_async_impl:
+    type: async
+    module: agents.traffic-update-orchestrator.orca
+    args: [self, ctx]
+    params:
+      returns: AsyncGenerator
+  _strip_fences:
+    type: sync
+    module: agents.energy-management-orchestrator.tools
+    args: [text]
+    params:
+      returns: str
+  ask_json:
+    type: sync
+    module: agents.energy-management-orchestrator.tools
+    args: [self, prompt]
+    params:
+      returns: List[Dict]
+  call_traffic_update_agent_async:
+    type: async
+    module: agents.traffic-update-orchestrator.orca
+    args: [user_input]
+  callback:
+    type: sync
+    module: agents.energy-management-orchestrator.pubsub
+    args: [message]
+    params:
+      returns: None
+  get_cultural_events:
+    type: sync
+    module: agents.event-management-orchestrator.event_coordinator
+    args: [user_input]
+    params:
+      returns: EventsDigestOutput
+  get_energy_digest:
+    type: sync
+    module: agents.energy-management-orchestrator.energy_coordinator
+    args: [user_input]
+    params:
+      returns: EnergyDigestOutput
+  get_traffic_digest:
+    type: sync
+    module: agents.traffic-update-orchestrator.traffic_coordinator
+    args: [user_input]
+    params:
+      returns: TrafficDigestOutput
+  load_agent_config:
+    type: sync
+    module: agents.traffic-update-orchestrator.orca
+    args: [config_file]
+  make_bescom_agent:
+    type: sync
+    module: agents.energy-management-orchestrator.agent
+    params:
+      returns: BESCOMOutageAgent
+  publish_messages:
+    type: sync
+    module: agents.energy-management-orchestrator.pubsub
+    args: [json_message, error_handler]
+    params:
+      returns: None
+  recieve_messages:
+    type: sync
+    module: agents.energy-management-orchestrator.pubsub
+    params:
+      returns: str
+  run_energy_management_agent:
+    type: sync
+    module: agents.energy-management-orchestrator.main
+    args: [cloudevent]
+  runCulturalEventAgent:
+    type: sync
+    module: agents.event-management-orchestrator.main
+    args: [cloudevent]
+  runTrafficUpdateAgent:
+    type: sync
+    module: agents.traffic-update-orchestrator.main
+    args: [cloudevent]
+  setup_session_and_runner:
+    type: async
+    module: agents.traffic-update-orchestrator.orca
+  validate_location_weather:
+    type: sync
+    module: agents.event-management-orchestrator.event_coordinator
+    args: [cls, v]
+
+files:
+  config_file:
+    type: variable
+    actions: [read]
+    params:
+      caller: [open, json.load]
+      alias: [file]
